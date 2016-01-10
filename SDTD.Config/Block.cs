@@ -30,7 +30,7 @@ namespace SDTD.Config
         }
 
         /// <summary>
-        /// Initialize a block from its XML description.
+        /// Initializes a block from its XML description.
         /// </summary>
         /// <param name="block">A &lt;block&gt; element in a game-compatible blocks.xml format.</param>
         public Block(XElement block)
@@ -45,7 +45,7 @@ namespace SDTD.Config
         }
 
         /// <summary>
-        /// Add a drop to the block from its XML description.
+        /// Adds a drop to the block from its XML description.
         /// </summary>
         /// <param name="drop">A &lt;drop&gt; element in a game-compatible blocks.xml format.</param>
         private void AddDrop(XElement drop)
@@ -61,7 +61,7 @@ namespace SDTD.Config
         }
 
         /// <summary>
-        /// Add a property to the block from its XML description.
+        /// Adds a property to the block from its XML description.
         /// </summary>
         /// <remarks>
         /// This function works on either a name/value property element, or a class property element.
@@ -81,7 +81,7 @@ namespace SDTD.Config
         }
 
         /// <summary>
-        /// Add a property to the block from its XML description.
+        /// Adds a property to the block from its XML description.
         /// </summary>
         /// <remarks><para>
         /// Except for RepairItems (see below), this function flattens all classed properties to the class.name format
@@ -128,7 +128,7 @@ namespace SDTD.Config
         }
 
         /// <summary>
-        /// Fill a block with properties and drop events from the given XML.
+        /// Fills a block with properties and drop events from the given XML.
         /// </summary>
         /// <remarks>
         /// The id and name attributes of the given block element are ignored.
