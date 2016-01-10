@@ -5,24 +5,44 @@ using System.Xml.Linq;
 
 namespace SDTD.Config
 {
-    class ItemCollection
+    public class ItemCollection
     {
-        ItemCollection()
-        {
-            this.items = new Dictionary<string, Item>();
-        }
-
-        public void Add(Item item)
+        private void Add(Item item)
         {
             this.items.Add(item.Name, item);
+            item.Collection = this;
         }
 
-        public XElement AsXElement()
+        private void Add(XElement item)
         {
-            return new XElement("items",
-                                this.items.Values.OrderBy(i => i.ID).Select(i => i.AsXElement()));
+            this.Add(new Item(item));
         }
 
-        private Dictionary<String, Item> items;
+        public static ItemCollection Load(XDocument document)
+        {
+            ItemCollection collection = new ItemCollection();
+            foreach (XElement item in document.Root.Elements("item")) {
+                collection.Add(item);
+            }
+            return collection;
+        }
+
+        public XDocument ToXDocument()
+        {
+            return new XDocument(
+                new XDeclaration("1.0", "utf-8", "true"),
+                new XElement("items",
+                    this.items.Values.OrderBy(i => i.ID).Select(i => i.ToXElement())));
+        }
+
+        public Int32 Count {
+            get { return items.Count; }
+        }
+
+        public Item this[String name] {
+            get { return this.items.ContainsKey(name) ? this.items[name] : null; }
+        }
+
+        private Dictionary<String, Item> items = new Dictionary<String, Item>();
     }
 }

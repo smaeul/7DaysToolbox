@@ -5,19 +5,38 @@ using System.Xml.Linq;
 
 namespace SDTD.Config
 {
-    class Item
+    public class Item
     {
-        Item()
+        public Item(XElement item)
+        {
+            try {
+                this.ID = Convert.ToUInt32(item.Attribute("id").Value);
+                this.Name = item.Attribute("name").Value;
+            } catch {
+                throw new ArgumentException("The given XElement does not represent a valid item.");
+            }
+            this.Fill(item);
+        }
+
+        private void AddProperty(XElement property)
         {
 
         }
 
-        public XElement AsXElement()
+        private void Fill(XElement item)
         {
-            return new XElement("item",
-                                new XAttribute("id", this.ID),
-                                new XAttribute("name", this.Name));
+
         }
+
+        public XElement ToXElement()
+        {
+            XElement element = new XElement("item",
+                new XAttribute("id", this.ID),
+                new XAttribute("name", this.Name));
+            return element;
+        }
+
+        public ItemCollection Collection { get; set; }
 
         public UInt32 ID { get; }
         public String Name { get; }
