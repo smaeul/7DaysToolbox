@@ -6,7 +6,7 @@ using System.Xml.Linq;
 namespace SDTD.Config
 {
     /// <summary>
-    /// Represents a collection of blocks; usually, the entire contents of blocks.xml
+    /// Represents a collection of blocks; usually, the entire contents of blocks.xml.
     /// </summary>
     public class BlockCollection
     {
