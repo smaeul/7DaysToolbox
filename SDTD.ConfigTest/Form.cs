@@ -1,14 +1,24 @@
-﻿using SDTD.Config;
-using System;
-using System.IO;
-using System.Xml.Linq;
-
-namespace SDTD.ConfigTest
+﻿namespace SDTD.ConfigTest
 {
+    using SDTD.Config;
+    using System;
+    using System.IO;
+    using System.Xml.Linq;
+
     public partial class Form : System.Windows.Forms.Form
     {
+        private String dataPath = @"C:\Program Files (x86)\Steam\steamapps\common\7 Days To Die\Data\Config";
+
+        private BlockCollection blocks;
+        private ItemCollection items;
+        private MaterialCollection materials;
+
         public Form()
         {
+            items = new ItemCollection();
+            materials = new MaterialCollection();
+            blocks = new BlockCollection(items, materials);
+
             InitializeComponent();
         }
 
@@ -18,16 +28,13 @@ namespace SDTD.ConfigTest
             XDocument blocksXML = XDocument.Load(dataPath + Path.DirectorySeparatorChar + "blocks.xml");
             XDocument itemsXML = XDocument.Load(dataPath + Path.DirectorySeparatorChar + "items.xml");
             XDocument materialsXML = XDocument.Load(dataPath + Path.DirectorySeparatorChar + "materials.xml");
-            XDocument recipesXML = XDocument.Load(dataPath + Path.DirectorySeparatorChar + "recipes.xml");
 
-            blocks = BlockCollection.Load(blocksXML);
+            items.Load(itemsXML);
+            materials.Load(materialsXML);
+            blocks.Load(blocksXML);
             statusBox.AppendText(String.Format("  Found {0} blocks.{1}", blocks.Count, Environment.NewLine));
-            items = ItemCollection.Load(itemsXML);
             statusBox.AppendText(String.Format("  Found {0} items.{1}", items.Count, Environment.NewLine));
-            materials = MaterialCollection.Load(materialsXML);
             statusBox.AppendText(String.Format("  Found {0} materials.{1}", materials.Count, Environment.NewLine));
-            recipes = RecipeCollection.Load(recipesXML);
-            statusBox.AppendText(String.Format("  Found {0} recipes.{1}", recipes.Count, Environment.NewLine));
 
             statusBox.AppendText("XML for wood frame:" + Environment.NewLine);
             statusBox.AppendText(blocks["woodFrame"].ToXElement().ToString());
@@ -39,12 +46,5 @@ namespace SDTD.ConfigTest
             statusBox.AppendText(materials[blocks["rebarFrame"].GetProperty("Material")].ToXElement().ToString());
             statusBox.AppendText(Environment.NewLine);
         }
-
-        private String dataPath = @"C:\Program Files (x86)\Steam\steamapps\common\7 Days To Die\Data\Config";
-
-        private BlockCollection blocks;
-        private ItemCollection items;
-        private MaterialCollection materials;
-        private RecipeCollection recipes;
     }
 }
