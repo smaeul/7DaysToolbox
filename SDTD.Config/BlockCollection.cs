@@ -1,74 +1,67 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Xml.Linq;
-
-namespace SDTD.Config
+﻿namespace SDTD.Config
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
+    using System.Xml.Linq;
+
     /// <summary>
     /// Represents a collection of blocks; usually, the entire contents of blocks.xml.
     /// </summary>
-    public class BlockCollection
+    public class BlockCollection : ObservableBaseCollection<Block>, IElementCollection
     {
         /// <summary>
-        /// Adds an existing block to the collection.
+        /// Creates a new block collection, with references to items and materials resolved from the given collections
         /// </summary>
-        /// <param name="block">The Block object to add.</param>
-        private void Add(Block block)
+        /// <param name="items">The collection of items to resolve references with.</param>
+        /// <param name="materials">The collection of materials to resolve references with.</param>
+        public BlockCollection(ItemCollection items, MaterialCollection materials) : base()
         {
-            this.blocks.Add(block.Name, block);
-            block.Collection = this;
+            if (items == null) { throw new ArgumentNullException(nameof(items)); }
+            if (materials == null) { throw new ArgumentNullException(nameof(materials)); }
+            this.Items = items;
+            this.Materials = materials;
         }
 
-        /// <summary>
-        /// Adds a new block to the collection from its XML description.
-        /// </summary>
-        /// <param name="block">A &lt;block&gt; element in a game-compatible blocks.xml format.</param>
-        private void Add(XElement block)
-        {
-            this.Add(new Block(block));
-        }
+        public new ItemCollection Items { get; }
+        public MaterialCollection Materials { get; }
 
         /// <summary>
-        /// Creates and populates a BlockCollection from a blocks.xml-formatted XML document.
+        /// Loads all blocks in the XDocument into the collection.
         /// </summary>
-        /// <param name="document">A game-compatible blocks.xml-formatted XDocument.</param>
-        /// <returns>The filled BlockCollection.</returns>
-        public static BlockCollection Load(XDocument document)
+        /// <param name="document">The XDocument to read from.</param>
+        public void Load(XDocument document)
         {
-            BlockCollection collection = new BlockCollection();
-            foreach (XElement block in document.Root.Elements("block")) {
-                collection.Add(block);
+            Dictionary<String, XElement> loadedBlocks = new Dictionary<string, XElement>();
+            foreach (XElement element in document.Root.Elements(_elementName)) {
+                UInt32 id;
+                String name = element.Attribute("name")?.Value;
+                if (UInt32.TryParse(element.Attribute("id")?.Value, out id) && name != null) {
+                    this.Add(new Block(this, id, name));
+                    loadedBlocks.Add(name, element);
+                }
             }
-            return collection;
+            // Requires two passes because blocks reference other blocks
+            foreach (KeyValuePair<String, XElement> blockKVP in loadedBlocks) {
+                foreach (XElement property in blockKVP.Value.Elements("property")) {
+                    this[blockKVP.Key].AddProperty(property);
+                }
+                foreach (XElement drop in blockKVP.Value.Elements("drop")) {
+                    this[blockKVP.Key].AddDrop(drop);
+                }
+            }
         }
 
         /// <summary>
-        /// Generates an XDocument containing data for all of the blocks in the collection.
+        /// Saves the data for all blocks in the collection to a game-compatible XDocument.
         /// </summary>
-        /// <returns>A game-compatible blocks.xml-formatted XDocument.</returns>
-        public XDocument ToXDocument()
+        /// <param name="document">The XDocument to write to (clearing existing data in it).</param>
+        public void Save(XDocument document)
         {
-            return new XDocument(
-                new XDeclaration("1.0", "utf-8", "true"),
-                new XElement("blocks",
-                    this.blocks.Values.OrderBy(b => b.ID).Select(b => b.ToXElement())));
+            document.Declaration = new XDeclaration("1.0", "utf-8", "true");
+            if (document.Root != null) { document.Root.Remove(); }
+            document.Add(new XElement("blocks"));
+            document.Root.Add(this.OrderBy(b => b.ID).Select(b => b.ToXElement()));
         }
-
-        /// <summary>
-        /// The number of blocks in the collection.
-        /// </summary>
-        public Int32 Count {
-            get { return blocks.Count; }
-        }
-
-        public Block this[String name] {
-            get { return this.blocks.ContainsKey(name) ? this.blocks[name] : null; }
-        }
-
-        /// <summary>
-        /// All of the blocks in the collection, keyed by name.
-        /// </summary>
-        private Dictionary<String, Block> blocks = new Dictionary<String, Block>();
     }
 }

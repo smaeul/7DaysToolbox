@@ -1,74 +1,49 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Xml.Linq;
-
-namespace SDTD.Config
+﻿namespace SDTD.Config
 {
+    using System;
+    using System.Linq;
+    using System.Xml.Linq;
+
     /// <summary>
     /// Represents a collection of materials; usually, the entire contents of materials.xml.
     /// </summary>
-    public class MaterialCollection
+    public class MaterialCollection : ObservableBaseCollection<Material>, IElementCollection
     {
         /// <summary>
-        /// Adds an existing material to the collection.
+        /// Creates a new, empty collection of items.
         /// </summary>
-        /// <param name="material">The Material object to add.</param>
-        private void Add(Material material)
+        public MaterialCollection() : base()
         {
-            this.materials.Add(material.Name, material);
-            material.Collection = this;
+            // No additional implementation.
         }
 
         /// <summary>
-        /// Adds a new material to the collection from its XML description.
+        /// Loads all materials in the XDocument into the collection.
         /// </summary>
-        /// <param name="material">A &lt;material&gt; element in a game-compatible materials.xml format.</param>
-        private void Add(XElement material)
+        /// <param name="document">The XDocument to read from.</param>
+        public void Load(XDocument document)
         {
-            this.Add(new Material(material));
-        }
-
-        /// <summary>
-        /// Creates and populates a MaterialCollection from a materials.xml-formatted XML document.
-        /// </summary>
-        /// <param name="document">A game-compatible materials.xml-formatted XDocument.</param>
-        /// <returns>The filled MaterialCollection.</returns>
-        public static MaterialCollection Load(XDocument document)
-        {
-            MaterialCollection collection = new MaterialCollection();
-            foreach (XElement material in document.Root.Elements("material")) {
-                collection.Add(material);
+            foreach (XElement element in document.Root.Elements(_elementName)) {
+                String name = element.Attribute("id")?.Value;
+                if (name != null) {
+                    this.Add(new Material(this, name));
+                    foreach (XElement property in element.Elements("property")) {
+                        this[name].AddProperty(property);
+                    }
+                }
             }
-            return collection;
         }
 
         /// <summary>
-        /// Generates an XDocument containing data for all of the materials in the collection.
+        /// Saves the data for all materials in the collection to a game-compatible XDocument.
         /// </summary>
-        /// <returns>A game-compatible materials.xml-formatted XDocument.</returns>
-        public XDocument ToXDocument()
+        /// <param name="document">The XDocument to write to (clearing existing data in it).</param>
+        public void Save(XDocument document)
         {
-            return new XDocument(
-                new XDeclaration("1.0", "utf-8", "true"),
-                new XElement("materials",
-                    this.materials.Values.OrderBy(m => m.Name).Select(m => m.ToXElement())));
+            document.Declaration = new XDeclaration("1.0", "utf-8", "true");
+            if (document.Root != null) { document.Root.Remove(); }
+            document.Add(new XElement("materials"));
+            document.Root.Add(this.OrderBy(m => m.Name).Select(b => b.ToXElement()));
         }
-
-        /// <summary>
-        /// The number of materials in the collection.
-        /// </summary>
-        public Int32 Count {
-            get { return materials.Count; }
-        }
-
-        public Material this[String name] {
-            get { return this.materials.ContainsKey(name) ? this.materials[name] : null; }
-        }
-
-        /// <summary>
-        /// All of the materials in the collection, keyed by name.
-        /// </summary>
-        private Dictionary<String, Material> materials = new Dictionary<String, Material>();
     }
 }

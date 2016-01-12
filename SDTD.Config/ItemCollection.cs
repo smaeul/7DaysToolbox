@@ -1,48 +1,50 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Xml.Linq;
-
-namespace SDTD.Config
+﻿namespace SDTD.Config
 {
-    public class ItemCollection
+    using System;
+    using System.Linq;
+    using System.Xml.Linq;
+
+    /// <summary>
+    /// Represents a collection of items; usually, the entire contents of items.xml.
+    /// </summary>
+    public class ItemCollection : ObservableBaseCollection<Item>, IElementCollection
     {
-        private void Add(Item item)
+        /// <summary>
+        /// Creates a new, empty collection of items.
+        /// </summary>
+        public ItemCollection() : base()
         {
-            this.items.Add(item.Name, item);
-            item.Collection = this;
+            // No additional implementation.
         }
 
-        private void Add(XElement item)
+        /// <summary>
+        /// Loads all items in the XDocument into the collection.
+        /// </summary>
+        /// <param name="document">The XDocument to read from.</param>
+        public void Load(XDocument document)
         {
-            this.Add(new Item(item));
-        }
-
-        public static ItemCollection Load(XDocument document)
-        {
-            ItemCollection collection = new ItemCollection();
-            foreach (XElement item in document.Root.Elements("item")) {
-                collection.Add(item);
+            foreach (XElement element in document.Root.Elements(_elementName)) {
+                UInt32 id;
+                String name = element.Attribute("name")?.Value;
+                if (UInt32.TryParse(element.Attribute("id")?.Value, out id) && name != null) {
+                    this.Add(new Item(this, id, name));
+                    foreach (XElement property in element.Elements("property")) {
+                        this[name].AddProperty(property);
+                    }
+                }
             }
-            return collection;
         }
 
-        public XDocument ToXDocument()
+        /// <summary>
+        /// Saves the data for all items in the collection to a game-compatible XDocument.
+        /// </summary>
+        /// <param name="document">The XDocument to write to (clearing existing data in it).</param>
+        public void Save(XDocument document)
         {
-            return new XDocument(
-                new XDeclaration("1.0", "utf-8", "true"),
-                new XElement("items",
-                    this.items.Values.OrderBy(i => i.ID).Select(i => i.ToXElement())));
+            document.Declaration = new XDeclaration("1.0", "utf-8", "true");
+            if (document.Root != null) { document.Root.Remove(); }
+            document.Add(new XElement("items"));
+            document.Root.Add(this.OrderBy(i => i.ID).Select(b => b.ToXElement()));
         }
-
-        public Int32 Count {
-            get { return items.Count; }
-        }
-
-        public Item this[String name] {
-            get { return this.items.ContainsKey(name) ? this.items[name] : null; }
-        }
-
-        private Dictionary<String, Item> items = new Dictionary<String, Item>();
     }
 }

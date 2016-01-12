@@ -1,63 +1,51 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Xml.Linq;
-
-namespace SDTD.Config
+﻿namespace SDTD.Config
 {
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
+    using System.Xml.Linq;
+
     /// <summary>
     /// Represents a single block.
     /// </summary>
-    public class Block
+    public class Block : ObservableBase<Block>, IElement
     {
-        private class Drop
-        {
-            public Drop(Block block, XElement drop)
-            {
-                this.Count = drop.Attribute("count")?.Value ?? "1";
-                this.Name = drop.Attribute("name")?.Value ?? block.Name;
-                this.Probability = Convert.ToSingle(drop.Attribute("prob")?.Value ?? "1");
-                this.StickChance = Convert.ToSingle(drop.Attribute("stick_chance")?.Value ?? "0");
-                this.ToolCategory = drop.Attribute("tool_category")?.Value;
-            }
+        private Dictionary<String, List<Drop>> _events = new Dictionary<String, List<Drop>>();
+        private Dictionary<String, String> _properties = new Dictionary<String, String>();
 
-            public String Count { get; set; }
-            // XXX: Item may be a block or item
-            public String Name { get; set; }
-            public Single Probability { get; set; }
-            public Single StickChance { get; set; }
-            public String ToolCategory { get; set; }
+        /// <summary>
+        /// Create a new <c>Block</c> instance with the specified attributes, belonging to the given collection.
+        /// </summary>
+        /// <param name="collection">The collection to which the block belongs.</param>
+        /// <param name="id">The numeric identifier of the block.</param>
+        /// <param name="name">The (untranslated) internal name of the block.</param>
+        public Block(BlockCollection collection, UInt32 id, String name) : base(collection, id, name)
+        {
+            // No additional implementation.
         }
 
         /// <summary>
-        /// Initializes a block from its XML description.
+        /// The block that this block inherits from.
         /// </summary>
-        /// <param name="block">A &lt;block&gt; element in a game-compatible blocks.xml format.</param>
-        public Block(XElement block)
-        {
-            try {
-                this.ID = Convert.ToUInt32(block.Attribute("id").Value);
-                this.Name = block.Attribute("name").Value;
-            } catch {
-                throw new ArgumentException("The given XElement does not represent a valid block.");
+        public Block Extends {
+            get {
+                String block = this.GetProperty("Extends");
+                return (block != null && this.Collection.ContainsKey(block)) ? this.Collection[block] : null;
             }
-            this.Fill(block);
         }
 
         /// <summary>
         /// Adds a drop to the block from its XML description.
         /// </summary>
         /// <param name="drop">A &lt;drop&gt; element in a game-compatible blocks.xml format.</param>
-        private void AddDrop(XElement drop)
+        public void AddDrop(XElement drop)
         {
             String eventName = drop.Attribute("event")?.Value;
-            if (eventName == null) {
-                throw new ArgumentException("The given drop is missing an event name.");
+            if (eventName == null) { throw new ArgumentException("The given drop is missing an event name."); }
+            if (!this._events.ContainsKey(eventName)) {
+                this._events.Add(eventName, new List<Drop>());
             }
-            if (!this.events.ContainsKey(eventName)) {
-                this.events.Add(eventName, new List<Drop>());
-            }
-            this.events[eventName].Add(new Drop(this, drop));
+            this._events[eventName].Add(new Drop(this, drop));
         }
 
         /// <summary>
@@ -68,7 +56,7 @@ namespace SDTD.Config
         /// In the case of a class, it calls the other overload for each property in the class.
         /// </remarks>
         /// <param name="property">A &lt;property&gt; element in a game-compatible blocks.xml format.</param>
-        private void AddProperty(XElement property)
+        public void AddProperty(XElement property)
         {
             String className = property.Attribute("class")?.Value;
             if (className != null) {
@@ -78,6 +66,123 @@ namespace SDTD.Config
             } else {
                 this.AddProperty(property, null);
             }
+        }
+
+        /// <summary>
+        /// Gets the value of the specified property as a string, from this block or the block it extends.
+        /// </summary>
+        /// <param name="name">The name of the property to retrieve.</param>
+        /// <returns>The value of the property as a string, or null if the property has the default value.</returns>
+        public String GetProperty(String name)
+        {
+            if (this._properties.ContainsKey(name)) {
+                return this._properties[name];
+            } else if (name == "Extends") {
+                // Explicitly do not recurse when getting the parent block's name.
+                return null;
+            } else {
+                return this.Extends?.GetProperty(name);
+            }
+        }
+
+        /// <summary>
+        /// Sets a property on the block, removing it if it matches the extended block, or if the value is null.
+        /// </summary>
+        /// <param name="name">The name of the property to modify.</param>
+        /// <param name="value">The value to set the property to, or null to inherit/remove from this block.</param>
+        /// <returns>True if the property was changed, or false if no changes were made.</returns>
+        public Boolean SetProperty(String name, String value)
+        {
+            if (name == null) { throw new ArgumentNullException(nameof(name)); }
+
+            List<KeyValuePair<String, String>> oldProperties = null;
+            String oldValue = this.GetProperty(name);
+
+            if (name == "Extends") {
+                oldProperties = new List<KeyValuePair<string, string>>(_properties);
+            }
+            if (this._properties.ContainsKey(name)) {
+                if (this.Extends?.GetProperty(name) == value || value == null) {
+                    this._properties.Remove(name);
+                } else {
+                    this._properties[name] = value;
+                }
+            } else {
+                if (this.Extends?.GetProperty(name) != value && value != null) {
+                    this._properties.Add(name, value);
+                } else {
+                    return false;
+                }
+            }
+            if (this.GetProperty(name) == oldValue) {
+                return false;
+            } else {
+                this.OnPropertyChanged(name);
+            }
+            if (name == "Extends") {
+                // Restore all of the other property values.
+                foreach (KeyValuePair<String, String> property in oldProperties.Where(k => k.Key != "Extends")) {
+                    this.SetProperty(property.Key, property.Value);
+                }
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Generates a game-compatible XML description of the block.
+        /// </summary>
+        /// <returns>The &lt;block&gt; element representing this block.</returns>
+        public XElement ToXElement()
+        {
+            XElement element = new XElement("block",
+                new XAttribute("id", this.ID),
+                new XAttribute("name", this.Name));
+            foreach (KeyValuePair<String, String> propertyKVP in this._properties.OrderBy(p => p.Key)) {
+                XElement propertyElement = new XElement("property",
+                    new XAttribute("name", propertyKVP.Key),
+                    new XAttribute("value", propertyKVP.Value));
+                switch (propertyKVP.Key) {
+                case "PlantGrowing.GrowOnTop":
+                    if (this.Name == "growableCornTop2") {
+                        propertyElement.Add(new XAttribute("param1", "3"),
+                            new XAttribute("param2", "grownUpCornTop1"));
+                    }
+                    break;
+                case "RepairBlock.Item":
+                    propertyElement = new XElement("property",
+                        new XAttribute("class", "RepairItems"),
+                        new XElement("property",
+                            new XAttribute("name", propertyKVP.Value),
+                            new XAttribute("value", this._properties["RepairBlock.ItemCount"])));
+                    break;
+                case "RepairBlock.ItemCount":
+                    continue;
+                }
+                element.Add(propertyElement);
+            }
+            foreach (KeyValuePair<String, List<Drop>> eventKVP in this._events.OrderBy(e => e.Key)) {
+                foreach (Drop drop in eventKVP.Value) {
+                    XElement dropElement = new XElement("drop",
+                        new XAttribute("event", eventKVP.Key),
+                        new XAttribute("count", drop.Count));
+                    if (dropElement.Attribute("count").Value != "0") {
+                        if (drop.Name != null && drop.Name != this.Name) {
+                            dropElement.Add(new XAttribute("name", drop.Name));
+                        }
+                        if (drop.Probability != 1F) {
+                            dropElement.Add(new XAttribute("prob", drop.Probability));
+                        }
+                        if (drop.StickChance != 0F) {
+                            dropElement.Add(new XAttribute("stick_chance", drop.StickChance));
+                        }
+                        if (drop.ToolCategory != null) {
+                            dropElement.Add(new XAttribute("tool_category", drop.ToolCategory));
+                        }
+                    }
+                    element.Add(dropElement);
+                }
+            }
+            return element;
         }
 
         /// <summary>
@@ -101,7 +206,7 @@ namespace SDTD.Config
         /// This function ignores param1/2 except where special-cased. This has not caused any obvious problems.
         /// * For CanPickup, param1 is the item that is picked up. This is completely replaced by PickupTarget.
         /// * For Model, param1 is (almost) always the same value, and removing it doesn't seem to change anything.
-        /// * For PlantGrowing.GrowOnTop, one variant of corn may stop growing. This may need to be special-cased.
+        /// * For PlantGrowing.GrowOnTop, one variant of corn may stop growing. This has been manually special-cased.
         /// </para></remarks>
         /// <param name="property">A &lt;property&gt; element with name, value, [param1/2] attributes.</param>
         /// <param name="className">The class this property belongs to, or null for top-level properties.</param>
@@ -109,9 +214,7 @@ namespace SDTD.Config
         {
             String name = property.Attribute("name")?.Value;
             String value = property.Attribute("value")?.Value;
-            if (name == null) {
-                throw new ArgumentException("The given property is missing a name.");
-            }
+            if (name == null) { throw new ArgumentException("The given property is missing a name."); }
             if (name == "CanPickup" && property.Attribute("param1") != null) {
                 this.SetProperty("PickupTarget", property.Attribute("param1").Value);
             }
@@ -128,162 +231,47 @@ namespace SDTD.Config
         }
 
         /// <summary>
-        /// Fills a block with properties and drop events from the given XML.
+        /// Represents the response to an event, possibly the dropping of a block.
         /// </summary>
-        /// <remarks>
-        /// The id and name attributes of the given block element are ignored.
-        /// </remarks>
-        /// <param name="block">A &lt;block&gt; element in a game-compatible blocks.xml format.</param>
-        private void Fill(XElement block)
+        private class Drop
         {
-            foreach (XElement property in block.Elements("property")) {
-                this.AddProperty(property);
-            }
-            foreach (XElement drop in block.Elements("drop")) {
-                this.AddDrop(drop);
-            }
-        }
+            private BlockCollection _blockCollection;
+            // This can be either a block or an item, or the special value '[recipe]'.
+            private ObservableBase _item;
+            // TODO: Subscribe to _item's PropertyChanged event to pick up the new name.
+            private String _itemName;
 
-        /// <summary>
-        /// Gets the value of the specified property as a string, from this block or the block it extends.
-        /// </summary>
-        /// <param name="name">The name of the property to retrieve.</param>
-        /// <returns>The value of the property as a string, or null if the property has the default value.</returns>
-        public String GetProperty(String name)
-        {
-            if (this.properties.ContainsKey(name)) {
-                return this.properties[name];
-            } else if (name == "Extends") {
-                // Explicitly do not recurse when getting the parent block's name.
-                return null;
-            } else {
-                return this.Extends?.GetProperty(name);
+            public Drop(Block block, XElement drop)
+            {
+                this._blockCollection = block.Collection as BlockCollection;
+                this.Count = drop.Attribute("count")?.Value ?? "1";
+                this.Name = drop.Attribute("name")?.Value;
+                this.Probability = Convert.ToSingle(drop.Attribute("prob")?.Value ?? "1");
+                this.StickChance = Convert.ToSingle(drop.Attribute("stick_chance")?.Value ?? "0");
+                this.ToolCategory = drop.Attribute("tool_category")?.Value;
             }
-        }
 
-        /// <summary>
-        /// Sets a property on this block, removing it if it matches the extended block, or if the value is null.
-        /// </summary>
-        /// <param name="name">The name of the property to modify.</param>
-        /// <param name="value">The value to set the property to, or null to inherit/remove from this block.</param>
-        private void SetProperty(String name, String value)
-        {
-            if (name == null) {
-                throw new ArgumentNullException();
-            }
-            if (value == null) {
-                // XXX: Does value == null mean use the default or inherit? This code inherits if Extends != null
-                if (this.properties.ContainsKey(name)) {
-                    this.properties.Remove(name);
-                }
-            } else {
-                if (this.properties.ContainsKey(name)) {
-                    if (this.Extends?.GetProperty(name) == value) {
-                        this.properties.Remove(name);
-                    } else {
-                        this.properties[name] = value;
-                    }
-                } else {
-                    if (!(this.Extends?.GetProperty(name) == value)) {
-                        this.properties.Add(name, value);
-                    }
-                }
-            }
-            if (name == "Extends") {
-                // Rewrite all of the other properties to pick up the new inherited value
-                foreach (String property in this.properties.Keys.Where(k => k != "Extends").ToArray()) {
-                    this.SetProperty(property, this.properties[property]);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Generates a game-compatible &lt;block&gt; element containing all data associated with this block.
-        /// </summary>
-        /// <returns>The &lt;block&gt; element representing this block.</returns>
-        public XElement ToXElement()
-        {
-            XElement element = new XElement("block",
-                new XAttribute("id", this.ID),
-                new XAttribute("name", this.Name));
-            foreach (KeyValuePair<String, String> propertyKVP in this.properties.OrderBy(p => p.Key)) {
-                XElement propertyElement = new XElement("property",
-                    new XAttribute("name", propertyKVP.Key),
-                    new XAttribute("value", propertyKVP.Value));
-                switch (propertyKVP.Key) {
-                case "RepairBlock.Item":
-                    propertyElement = new XElement("property",
-                        new XAttribute("class", "RepairItems"),
-                        new XElement("property",
-                            new XAttribute("name", propertyKVP.Value),
-                            new XAttribute("value", this.properties["RepairBlock.ItemCount"])));
-                    break;
-                case "RepairBlock.ItemCount":
-                    continue;
-                }
-                element.Add(propertyElement);
-            }
-            foreach (KeyValuePair<String, List<Drop>> eventKVP in this.events.OrderBy(e => e.Key)) {
-                foreach (Drop drop in eventKVP.Value) {
-                    XElement dropElement = new XElement("drop",
-                        new XAttribute("event", eventKVP.Key),
-                        new XAttribute("count", drop.Count));
-                    if (dropElement.Attribute("count").Value != "0") {
-                        if (drop.Name != "null" && drop.Name != this.Name) {
-                            dropElement.Add(new XAttribute("name", drop.Name));
-                        }
-                        if (drop.Probability != 1F) {
-                            dropElement.Add(new XAttribute("prob", drop.Probability));
-                        }
-                        if (drop.StickChance != 0F) {
-                            dropElement.Add(new XAttribute("stick_chance", drop.StickChance));
-                        }
-                        if (drop.ToolCategory != null) {
-                            dropElement.Add(new XAttribute("tool_category", drop.ToolCategory));
+            public String Count { get; set; }
+            public String Name {
+                get { return this._item?.Name ?? this._itemName; }
+                set {
+                    if (value != null) {
+                        if (this._blockCollection.ContainsKey(value)) {
+                            this._item = this._blockCollection[value];
+                            this._itemName = this._item.Name;
+                        } else if (this._blockCollection.Items.ContainsKey(value)) {
+                            this._item = this._blockCollection.Items[value];
+                            this._itemName = this._item.Name;
+                        } else {
+                            this._item = null;
+                            this._itemName = value;
                         }
                     }
-                    element.Add(dropElement);
                 }
             }
-            return element;
+            public Single Probability { get; set; }
+            public Single StickChance { get; set; }
+            public String ToolCategory { get; set; }
         }
-
-        /// <summary>
-        /// The collection of blocks that this block belongs to.
-        /// </summary>
-        public BlockCollection Collection { get; set; }
-
-        /// <summary>
-        /// The numeric identifier of the block.
-        /// </summary>
-        public UInt32 ID { get; }
-
-        /// <summary>
-        /// The (untranslated) internal name of the block.
-        /// </summary>
-        public String Name { get; }
-
-        /// <summary>
-        /// The block that this block inherits from.
-        /// </summary>
-        public Block Extends {
-            get {
-                try {
-                    return this.Collection[this.GetProperty("Extends")];
-                } catch {
-                    return null;
-                }
-            }
-        }
-
-        /// <summary>
-        /// All of the events associated with the block (keyed by event name), as a list of drops.
-        /// </summary>
-        private Dictionary<String, List<Drop>> events = new Dictionary<String, List<Drop>>();
-
-        /// <summary>
-        /// All of the properties of the block (keyed by name), as strings.
-        /// </summary>
-        private Dictionary<String, String> properties = new Dictionary<String, String>();
     }
 }
