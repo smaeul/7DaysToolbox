@@ -149,11 +149,16 @@
                     }
                     break;
                 case "RepairBlock.Item":
-                    propertyElement = new XElement("property",
-                        new XAttribute("class", "RepairItems"),
-                        new XElement("property",
-                            new XAttribute("name", propertyKVP.Value),
-                            new XAttribute("value", this._properties["RepairBlock.ItemCount"])));
+                    try {
+                        propertyElement = new XElement("property",
+                            new XAttribute("class", "RepairItems"),
+                            new XElement("property",
+                                new XAttribute("name", propertyKVP.Value),
+                                new XAttribute("value", this._properties["RepairBlock.ItemCount"])));
+                    } catch (KeyNotFoundException) {
+                        // RepairBlock.Item was set without RepairBlock.ItemCount
+                        propertyElement = null;
+                    }
                     break;
                 case "RepairBlock.ItemCount":
                     continue;
