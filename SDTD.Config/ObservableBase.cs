@@ -34,18 +34,18 @@
         public UInt32? ID { get; }
         public String Name { get; }
 
-        protected void OnPropertyChanged([CallerMemberName] string propertyName = null)
+        protected void OnPropertyChanged([CallerMemberName] String propertyName = null)
         {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+            this.PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
 
-        protected Boolean SetField<U>(ref U field, U value, [CallerMemberName] string propertyName = null)
+        protected Boolean SetField<U>(ref U field, U value, [CallerMemberName] String propertyName = null)
         {
             if (EqualityComparer<U>.Default.Equals(field, value)) {
                 return false;
             }
             field = value;
-            OnPropertyChanged(propertyName);
+            this.OnPropertyChanged(propertyName);
             return true;
         }
     }
