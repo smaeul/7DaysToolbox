@@ -19,6 +19,15 @@
         }
 
         /// <summary>
+        /// Loads all items in the XML file into the collection.
+        /// </summary>
+        /// <param name="filename">The XML file to read from.</param>
+        public void Load(String filename)
+        {
+            this.Load(XDocument.Load(filename));
+        }
+
+        /// <summary>
         /// Loads all items in the XDocument into the collection.
         /// </summary>
         /// <param name="document">The XDocument to read from.</param>
