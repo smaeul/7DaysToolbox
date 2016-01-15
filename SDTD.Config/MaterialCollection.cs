@@ -1,6 +1,7 @@
 ﻿namespace SDTD.Config
 {
     using System;
+    using System.IO;
     using System.Linq;
     using System.Xml.Linq;
 
@@ -32,6 +33,19 @@
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// Saves the data for all materials in the collection to a game-compatible XML file.
+        /// </summary>
+        /// <param name="filename">The path of the file to write to.</param>
+        public void Save(String filename)
+        {
+            XDocument document = new XDocument();
+            // The game chokes on the UTF8 BOM
+            StreamWriter writer = new StreamWriter(filename, false, new System.Text.UTF8Encoding(false));
+            this.Save(document);
+            document.Save(writer);
         }
 
         /// <summary>
